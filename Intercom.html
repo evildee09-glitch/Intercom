@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Intercom</title>
+<style>
+:root{--bg:#f6f5f1;--card:#fff;--text:#1d1d1b;--muted:#6b6a64;--accent:#0f766e;--accent-t:#fff;--danger:#b91c1c;--line:#dedcd3;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#141413;--card:#1f1f1d;--text:#f1efe8;--muted:#a09e94;--accent:#2dd4bf;--accent-t:#06201d;--danger:#f87171;--line:#34332f}}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:480px;margin:0 auto;padding:20px 16px 40px}
+h1{font-size:22px;margin:8px 0 4px}
+p{color:var(--muted);line-height:1.5;margin:6px 0 14px;font-size:15px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:14px}
+button{font:inherit;font-weight:600;border:0;border-radius:12px;padding:14px 16px;background:var(--accent);color:var(--accent-t);width:100%;margin-top:8px}
+button.alt{background:transparent;color:var(--text);border:1px solid var(--line)}
+button.danger{background:var(--danger);color:#fff}
+button:disabled{opacity:.45}
+textarea{width:100%;height:70px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--text);padding:10px;font:12px ui-monospace,monospace;margin-top:6px}
+label{font-size:13px;font-weight:600}
+.hide{display:none}
+.status{display:flex;align-items:center;gap:8px;font-weight:600}
+.dot{width:10px;height:10px;border-radius:50%;background:var(--muted)}
+.dot.on{background:#16a34a}
+.big{height:80px;font-size:20px}
+.qr{display:block;width:100%;max-width:340px;margin:10px auto;background:#fff;padding:6px;border-radius:10px;image-rendering:pixelated}
+.sep{border-top:1px solid var(--line);margin-top:16px;padding-top:12px}
+input[type=range]{width:100%;margin:8px 0}
+#track{font-size:14px;color:var(--muted);margin-top:8px;word-break:break-word}
+#scan{position:fixed;inset:0;background:#000;z-index:50;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:16px}
+#scan video{width:100%;max-width:480px;border-radius:12px}
+#scan p{color:#ddd}
+#scan button{max-width:480px}
+</style>
+</head>
+<body>
+<main>
+  <h1>Intercom</h1>
+  <p>Talk to one other person over the same Wi-Fi or phone hotspot. Put your earbuds in first.</p>
+
+  <div id="home" class="card">
+    <button id="bHost">Start a call</button>
+    <button id="bJoin" class="alt">Join a call</button>
+  </div>
+
+  <div id="host" class="card hide">
+    <label>1. Let your friend scan this QR (or send the code)</label>
+    <img id="qrOffer" class="qr hide" alt="QR code">
+    <textarea id="offer" readonly></textarea>
+    <button id="cpOffer" class="alt">Copy code</button>
+    <label style="display:block;margin-top:14px">2. Scan their reply QR (or paste the code)</label>
+    <button id="scanAnswer">Scan their QR</button>
+    <textarea id="answerIn" placeholder="Paste reply code"></textarea>
+    <button id="bConnect" class="alt">Connect</button>
+  </div>
+
+  <div id="guest" class="card hide">
+    <label>1. Scan the QR on your friend's phone (or paste the code)</label>
+    <button id="scanOffer">Scan their QR</button>
+    <textarea id="offerIn" placeholder="Paste code"></textarea>
+    <button id="bAnswer" class="alt">Create reply</button>
+    <div id="ans" class="hide">
+      <label style="display:block;margin-top:14px">2. Show this QR to your friend (or send the code)</label>
+      <img id="qrAnswer" class="qr hide" alt="QR code">
+      <textarea id="answerOut" readonly></textarea>
+      <button id="cpAnswer" class="alt">Copy code</button>
+    </div>
+  </div>
+
+  <div id="live" class="card hide">
+    <div class="status"><span id="dot" class="dot"></span><span id="state">Connecting…</span></div>
+    <button id="bMute" class="big">Mute mic</button>
+
+    <div class="sep">
+      <label>Share music</label>
+      <input type="file" id="file" accept="audio/*" class="hide">
+      <button id="bPick" class="alt">Choose a song from this phone</button>
+      <div id="track">No song chosen</div>
+      <button id="bPlay" class="alt" disabled>Play</button>
+      <input type="range" id="vol" min="0" max="1" step="0.05" value="0.6" aria-label="Music volume">
+      <p style="margin:0;font-size:13px">Your friend hears it through the call, with a small delay. Keep it below your voice.</p>
+    </div>
+
+    <button id="bEnd" class="danger" style="margin-top:16px">Hang up</button>
+  </div>
+
+  <p id="msg"></p>
+</main>
+
+<div id="scan" class="hide">
+  <video id="vid" playsinline muted></video>
+  <p id="scanHint">Point the camera at the QR code</p>
+  <input type="file" id="scanFile" accept="image/*" capture="environment" class="hide">
+  <button id="scanPhoto">Take a photo of the QR</button>
+  <button id="scanSwitch" class="alt" style="color:#fff;border-color:#666">Switch camera</button>
+  <button id="scanCancel" class="alt" style="color:#fff;border-color:#666">Cancel</button>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+let pc, stream, ac, musicDest, gain, music, camStream, scanning = false;
+const players = {};
+const show = id => ["home","host","guest","live"].forEach(x => $(x).classList.toggle("hide", x !== id));
+const say = t => $("msg").textContent = t || "";
+
+/* ---------- code packing (compressed so the QR stays small) ---------- */
+const toB64 = u8 => btoa(String.fromCharCode.apply(null, u8));
+const fromB64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
+async function pack(desc) {
+  const sdp = desc.sdp.split("\r\n").filter(l => !/^a=(extmap|rtcp-fb)/.test(l)).join("\r\n");
+  if ("CompressionStream" in window) {
+    const out = new Blob([sdp]).stream().pipeThrough(new CompressionStream("deflate-raw"));
+    return "z" + toB64(new Uint8Array(await new Response(out).arrayBuffer()));
+  }
+  return "r" + btoa(unescape(encodeURIComponent(sdp)));
+}
+async function unpack(code, type) {
+  code = code.trim();
+  const body = code.slice(1);
+  let sdp;
+  if (code[0] === "z") {
+    const out = new Blob([fromB64(body)]).stream().pipeThrough(new DecompressionStream("deflate-raw"));
+    sdp = await new Response(out).text();
+  } else if (code[0] === "r") {
+    sdp = decodeURIComponent(escape(atob(body)));
+  } else throw new Error("bad");
+  return { type, sdp };
+}
+
+/* ---------- QR display + scanning ---------- */
+function showQR(img, text) {
+  try {
+    const q = qrcode(0, "L"); q.addData(text); q.make();
+    img.src = q.createDataURL(3, 4); img.classList.remove("hide");
+  } catch { img.classList.add("hide"); say("Code too large for a QR. Use copy and paste instead."); }
+}
+let scanCb;
+async function scanQR(onCode) {
+  scanCb = onCode;
+  try {
+    camStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+  } catch {
+    camStream = null; $("scan").classList.remove("hide");
+    $("scanHint").textContent = "Live camera won't open here. Tap 'Take a photo of the QR' below.";
+    return;
+  }
+  const v = $("vid"); $("scan").classList.remove("hide"); v.srcObject = camStream; await v.play().catch(() => {});
+  $("scan").classList.remove("hide"); scanning = true;
+  $("scanHint").textContent = "Point the camera at the QR code";
+  setTimeout(() => {
+    if (!scanning) return;
+    const t = document.createElement("canvas"); t.width = t.height = 16;
+    const x = t.getContext("2d"); x.drawImage(v, 0, 0, 16, 16);
+    const d = x.getImageData(0, 0, 16, 16).data; let sum = 0;
+    for (let i = 0; i < d.length; i += 4) sum += d[i] + d[i+1] + d[i+2];
+    if (sum < 200) $("scanHint").textContent = "Camera feed is black. Uncover the camera, close other apps using it, or cancel and paste the code instead.";
+  }, 3000);
+  const c = document.createElement("canvas"), g = c.getContext("2d", { willReadFrequently: true });
+  const tick = () => {
+    if (!scanning) return;
+    if (v.videoWidth) {
+      const s = Math.min(1, 800 / v.videoWidth);
+      c.width = v.videoWidth * s; c.height = v.videoHeight * s;
+      g.drawImage(v, 0, 0, c.width, c.height);
+      const r = jsQR(g.getImageData(0, 0, c.width, c.height).data, c.width, c.height);
+      if (r && r.data) { stopScan(); onCode(r.data); return; }
+    }
+    requestAnimationFrame(tick);
+  };
+  tick();
+}
+function stopScan() {
+  scanning = false; $("scan").classList.add("hide");
+  camStream && camStream.getTracks().forEach(t => t.stop());
+}
+$("scanCancel").onclick = stopScan;
+$("scanPhoto").onclick = () => $("scanFile").click();
+$("scanFile").onchange = e => {
+  const f = e.target.files[0]; e.target.value = ""; if (!f) return;
+  const img = new Image();
+  img.onload = () => {
+    const s = Math.min(1, 1600 / Math.max(img.width, img.height));
+    const c = document.createElement("canvas"); c.width = img.width * s; c.height = img.height * s;
+    const g = c.getContext("2d", { willReadFrequently: true });
+    g.drawImage(img, 0, 0, c.width, c.height);
+    const r = jsQR(g.getImageData(0, 0, c.width, c.height).data, c.width, c.height, { inversionAttempts: "attemptBoth" });
+    URL.revokeObjectURL(img.src);
+    if (r && r.data) { stopScan(); scanCb && scanCb(r.data); }
+    else $("scanHint").textContent = "No QR found in that photo. Get closer, fill the frame with the QR, and try again.";
+  };
+  img.src = URL.createObjectURL(f);
+};
+let camIdx = -1;
+$("scanSwitch").onclick = async () => {
+  const cams = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === "videoinput");
+  if (!cams.length) { $("scanHint").textContent = "No camera found on this device."; return; }
+  camIdx = (camIdx + 1) % cams.length;
+  camStream && camStream.getTracks().forEach(t => t.stop());
+  try {
+    camStream = await navigator.mediaDevices.getUserMedia({ video: { deviceId: { exact: cams[camIdx].deviceId } } });
+    $("vid").srcObject = camStream; await $("vid").play().catch(() => {});
+    $("scanHint").textContent = "Camera: " + (cams[camIdx].label || (camIdx + 1) + " of " + cams.length);
+  } catch { $("scanHint").textContent = "That camera won't open. Try the next one."; }
+};
+
+/* ---------- connection ---------- */
+async function setup() {
+  ac = new (window.AudioContext || window.webkitAudioContext)();
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({
+      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
+    });
+  } catch (e) {
+    say("Microphone blocked. Allow mic access in your browser, and open this page over HTTPS.");
+    throw e;
+  }
+  pc = new RTCPeerConnection({ iceServers: [] }); // local network only
+  stream.getTracks().forEach(t => pc.addTrack(t, stream));
+
+  // music channel: always present, silent until a song plays
+  musicDest = ac.createMediaStreamDestination();
+  gain = ac.createGain(); gain.gain.value = +$("vol").value;
+  gain.connect(musicDest); gain.connect(ac.destination);
+  music = new Audio(); music.loop = false;
+  ac.createMediaElementSource(music).connect(gain);
+  music.onended = () => $("bPlay").textContent = "Play";
+  pc.addTrack(musicDest.stream.getAudioTracks()[0], musicDest.stream);
+
+  pc.ontrack = e => {
+    const s = e.streams[0]; if (!s || players[s.id]) return;
+    const a = document.createElement("audio");
+    a.autoplay = true; a.playsInline = true; a.srcObject = s;
+    document.body.appendChild(a); players[s.id] = a;
+    a.play().catch(() => {
+      say("Tap anywhere to enable sound.");
+      document.addEventListener("click", () => { Object.values(players).forEach(p => p.play().catch(()=>{})); say(""); }, { once: true });
+    });
+  };
+  pc.onconnectionstatechange = () => {
+    const s = pc.connectionState, ok = s === "connected";
+    $("dot").classList.toggle("on", ok);
+    $("state").textContent = ok ? "Connected. Talk now." : (s === "failed" || s === "disconnected") ? "Disconnected" : "Connecting…";
+    if (ok) { say(""); show("live"); }
+    if (s === "failed") say("Couldn't connect. Both phones must be on the same Wi-Fi or hotspot, with Wi-Fi 'client isolation' off.");
+  };
+}
+function gathered() {
+  return new Promise(res => {
+    if (pc.iceGatheringState === "complete") return res();
+    const chk = () => { if (pc.iceGatheringState === "complete") { pc.removeEventListener("icegatheringstatechange", chk); res(); } };
+    pc.addEventListener("icegatheringstatechange", chk);
+    setTimeout(res, 3500);
+  });
+}
+async function copy(id, btn) {
+  const el = $(id); el.select();
+  try { await navigator.clipboard.writeText(el.value); } catch { document.execCommand("copy"); }
+  btn.textContent = "Copied"; setTimeout(() => btn.textContent = "Copy code", 1500);
+}
+
+async function connectWith(code) {
+  try {
+    await pc.setRemoteDescription(await unpack(code, "answer"));
+    show("live");
+  } catch { say("That reply code doesn't look right. Try scanning again."); }
+}
+async function answerWith(code) {
+  try {
+    const offer = await unpack(code, "offer");
+    await setup();
+    await pc.setRemoteDescription(offer);
+    await pc.setLocalDescription(await pc.createAnswer());
+    await gathered();
+    const packed = await pack(pc.localDescription);
+    $("answerOut").value = packed; showQR($("qrAnswer"), packed);
+    $("ans").classList.remove("hide");
+  } catch (e) { if (!pc) return; say("That code doesn't look right. Try scanning again."); }
+}
+
+$("bHost").onclick = async () => {
+  say(""); await setup();
+  await pc.setLocalDescription(await pc.createOffer());
+  await gathered();
+  const packed = await pack(pc.localDescription);
+  $("offer").value = packed; showQR($("qrOffer"), packed);
+  show("host");
+};
+$("scanAnswer").onclick = () => scanQR(code => { $("answerIn").value = code; connectWith(code); });
+$("bConnect").onclick = () => connectWith($("answerIn").value);
+$("bJoin").onclick = () => { say(""); show("guest"); };
+$("scanOffer").onclick = () => scanQR(code => { $("offerIn").value = code; answerWith(code); });
+$("bAnswer").onclick = () => answerWith($("offerIn").value);
+$("cpOffer").onclick = e => copy("offer", e.target);
+$("cpAnswer").onclick = e => copy("answerOut", e.target);
+
+/* ---------- live controls ---------- */
+$("bMute").onclick = e => {
+  const t = stream.getAudioTracks()[0]; t.enabled = !t.enabled;
+  e.target.textContent = t.enabled ? "Mute mic" : "Unmute mic";
+};
+$("bPick").onclick = () => $("file").click();
+$("file").onchange = e => {
+  const f = e.target.files[0]; if (!f) return;
+  ac.resume();
+  if (music.src) URL.revokeObjectURL(music.src);
+  music.src = URL.createObjectURL(f);
+  $("track").textContent = f.name;
+  $("bPlay").disabled = false; $("bPlay").textContent = "Play";
+};
+$("bPlay").onclick = async () => {
+  await ac.resume();
+  if (music.paused) { await music.play().catch(() => say("Couldn't play that file.")); $("bPlay").textContent = "Pause"; }
+  else { music.pause(); $("bPlay").textContent = "Play"; }
+};
+$("vol").oninput = e => { if (gain) gain.gain.value = +e.target.value; };
+$("bEnd").onclick = () => {
+  music && music.pause();
+  pc && pc.close(); stream && stream.getTracks().forEach(t => t.stop()); ac && ac.close();
+  location.reload();
+};
+</script>
+</body>
+</html>
