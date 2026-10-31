@@ -6,6 +6,10 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <title>Intercom</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="theme-color" content="#0f766e">
 <style>
 :root{--bg:#f6f5f1;--card:#fff;--text:#1d1d1b;--muted:#6b6a64;--accent:#0f766e;--accent-t:#fff;--danger:#b91c1c;--line:#dedcd3;
 box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
@@ -45,6 +49,7 @@ input[type=range]{width:100%;margin:8px 0}
   <div id="home" class="card">
     <button id="bHost">Start a call</button>
     <button id="bJoin" class="alt">Join a call</button>
+    <p id="offline" style="margin:12px 0 0;font-size:13px"></p>
   </div>
 
   <div id="host" class="card hide">
@@ -246,7 +251,7 @@ async function setup() {
     const s = pc.connectionState, ok = s === "connected";
     $("dot").classList.toggle("on", ok);
     $("state").textContent = ok ? "Connected. Talk now." : (s === "failed" || s === "disconnected") ? "Disconnected" : "Connecting…";
-    if (ok) { say(""); show("live"); }
+    if (ok) { say(""); show("live"); keepAwake(); }
     if (s === "failed") say("Couldn't connect. Both phones must be on the same Wi-Fi or hotspot, with Wi-Fi 'client isolation' off.");
   };
 }
@@ -324,6 +329,24 @@ $("bEnd").onclick = () => {
   pc && pc.close(); stream && stream.getTracks().forEach(t => t.stop()); ac && ac.close();
   location.reload();
 };
+
+/* ---------- offline support + keep screen on ---------- */
+let wl;
+async function keepAwake() { try { wl = await navigator.wakeLock.request("screen"); } catch {} }
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible" && pc && pc.connectionState === "connected") keepAwake();
+});
+async function checkOffline() {
+  const el = $("offline");
+  if (!("serviceWorker" in navigator)) { el.textContent = "Offline mode isn't supported in this browser."; return; }
+  try {
+    await navigator.serviceWorker.register("sw.js");
+    await navigator.serviceWorker.ready;
+    const libs = typeof qrcode !== "undefined" && typeof jsQR !== "undefined";
+    el.textContent = libs ? "\u2713 Ready to work without internet" : "Open this page once with internet, then reopen it, to enable offline use.";
+  } catch { el.textContent = "Offline mode unavailable on this page."; }
+}
+checkOffline();
 </script>
 </body>
 </html>
